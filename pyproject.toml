@@ -1,0 +1,31 @@
+[project]
+name = "mcp-server-canyon"
+version = "1.0.0"
+description = "MCP Server for ChatGPT integration with OpenAI Vector Store"
+authors = [
+    {name = "Canyon Smith", email = "canyon@example.com"}
+]
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastmcp>=0.2.0",
+    "openai>=1.0.0",
+    "python-dotenv>=1.0.0",
+    "uvicorn>=0.24.0"
+]
+
+[project.scripts]
+start = "main:main"
+setup-assistant = "setup_assistant:main"
+
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 88
+target-version = ['py311']
+
+[tool.isort]
+profile = "black"
+line_length = 88 

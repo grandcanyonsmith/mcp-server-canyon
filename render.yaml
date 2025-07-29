@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: mcp-server-canyon
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements_flask.txt
+    startCommand: python main_simple.py
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false  # Set this manually in Render dashboard
+      - key: PORT
+        value: 10000 

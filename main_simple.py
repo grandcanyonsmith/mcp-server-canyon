@@ -84,16 +84,77 @@ def health_check():
 # MCP Server-Sent Events endpoint
 @app.route('/sse/', methods=['POST'])
 def mcp_sse():
-    """Handle MCP requests via Server-Sent Events"""
+    """Handle MCP requests via JSON-RPC over HTTP"""
     try:
         data = request.get_json()
+        logger.info(f"MCP request: {data}")
         
-        # Basic MCP request handling
+        # Handle MCP JSON-RPC protocol
         if 'method' in data:
             method = data['method']
             params = data.get('params', {})
+            request_id = data.get('id')
             
-            if method == 'tools/call':
+            # MCP initialize request
+            if method == 'initialize':
+                return jsonify({
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "result": {
+                        "protocolVersion": "2024-11-05",
+                        "capabilities": {
+                            "tools": {},
+                            "prompts": {},
+                            "resources": {}
+                        },
+                        "serverInfo": {
+                            "name": "mcp-server-canyon",
+                            "version": "1.0.0"
+                        }
+                    }
+                })
+            
+            # Tools list request
+            elif method == 'tools/list':
+                return jsonify({
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "result": {
+                        "tools": [
+                            {
+                                "name": "search",
+                                "description": "Search for relevant documents (currently mock data - configure vector store for real search)",
+                                "inputSchema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "query": {
+                                            "type": "string",
+                                            "description": "The search query string"
+                                        }
+                                    },
+                                    "required": ["query"]
+                                }
+                            },
+                            {
+                                "name": "fetch",
+                                "description": "Fetch the full content of a document by its ID (currently mock data)",
+                                "inputSchema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {
+                                            "type": "string",
+                                            "description": "The unique identifier for the document"
+                                        }
+                                    },
+                                    "required": ["id"]
+                                }
+                            }
+                        ]
+                    }
+                })
+            
+            # Tools call request
+            elif method == 'tools/call':
                 tool_name = params.get('name')
                 arguments = params.get('arguments', {})
                 
@@ -101,65 +162,107 @@ def mcp_sse():
                     query = arguments.get('query', '')
                     results = search_documents(query)
                     return jsonify({
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": json.dumps(results)
-                            }
-                        ]
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "result": {
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": json.dumps(results, indent=2)
+                                }
+                            ]
+                        }
                     })
                 
                 elif tool_name == 'fetch':
                     doc_id = arguments.get('id', '')
                     result = fetch_document(doc_id)
                     return jsonify({
-                        "content": [
-                            {
-                                "type": "text", 
-                                "text": json.dumps(result)
-                            }
-                        ]
-                    })
-            
-            elif method == 'tools/list':
-                return jsonify({
-                    "tools": [
-                        {
-                            "name": "search",
-                            "description": "Search for relevant documents (currently mock data - configure vector store for real search)",
-                            "inputSchema": {
-                                "type": "object",
-                                "properties": {
-                                    "query": {
-                                        "type": "string",
-                                        "description": "The search query string"
-                                    }
-                                },
-                                "required": ["query"]
-                            }
-                        },
-                        {
-                            "name": "fetch",
-                            "description": "Fetch the full content of a document by its ID (currently mock data)",
-                            "inputSchema": {
-                                "type": "object",
-                                "properties": {
-                                    "id": {
-                                        "type": "string",
-                                        "description": "The unique identifier for the document"
-                                    }
-                                },
-                                "required": ["id"]
-                            }
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "result": {
+                            "content": [
+                                {
+                                    "type": "text", 
+                                    "text": json.dumps(result, indent=2)
+                                }
+                            ]
                         }
-                    ]
+                    })
+                
+                else:
+                    return jsonify({
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "error": {
+                            "code": -32602,
+                            "message": f"Unknown tool: {tool_name}"
+                        }
+                    }), 400
+            
+            # Prompts list (empty for now)
+            elif method == 'prompts/list':
+                return jsonify({
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "result": {
+                        "prompts": []
+                    }
                 })
+            
+            # Resources list (empty for now)
+            elif method == 'resources/list':
+                return jsonify({
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "result": {
+                        "resources": []
+                    }
+                })
+            
+            else:
+                return jsonify({
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "error": {
+                        "code": -32601,
+                        "message": f"Method not found: {method}"
+                    }
+                }), 400
         
-        return jsonify({"error": "Invalid request"}), 400
+        # Invalid request format
+        return jsonify({
+            "jsonrpc": "2.0",
+            "error": {
+                "code": -32600,
+                "message": "Invalid Request"
+            }
+        }), 400
         
     except Exception as e:
         logger.error(f"MCP SSE error: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({
+            "jsonrpc": "2.0",
+            "error": {
+                "code": -32603,
+                "message": f"Internal error: {str(e)}"
+            }
+        }), 500
+
+# GET endpoint for MCP discovery
+@app.route('/sse/', methods=['GET'])
+def mcp_discovery():
+    """MCP server discovery endpoint"""
+    return jsonify({
+        "capabilities": {
+            "prompts": {},
+            "resources": {},
+            "tools": {}
+        },
+        "protocol_version": "2024-11-05",
+        "server_name": "MCP Server Canyon",
+        "server_version": "1.0.0"
+    })
 
 # Simple tool endpoints for testing
 @app.route('/search', methods=['POST'])
@@ -205,9 +308,9 @@ def home():
 
 # OAuth 2.0 Endpoints for ChatGPT Connector
 
-# Mock client credentials for demonstration
-CLIENT_ID = "mcp_server_canyon_client"
-CLIENT_SECRET = "mcp_server_canyon_secret_key_demo"
+# Mock client credentials for demonstration  
+CLIENT_ID = "mcp-server-canyon"
+CLIENT_SECRET = "mcp-server-canyon-secret"
 
 @app.route('/.well-known/mcp_oauth_config', methods=['GET'])
 def mcp_oauth_config():

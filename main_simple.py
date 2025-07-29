@@ -7,6 +7,8 @@ This version provides mock search/fetch functionality that can be extended later
 import os
 import logging
 import json
+import hashlib
+import base64
 from typing import List, Dict, Any
 from flask import Flask, request, jsonify, redirect
 from dotenv import load_dotenv
@@ -370,7 +372,7 @@ def oauth_authorization_server():
 @app.route('/oauth/authorize', methods=['GET'])
 def oauth_authorize():
     """
-    Authorization endpoint for OAuth 2.0.
+    Authorization endpoint for OAuth 2.0 with PKCE support.
     In a real application, this would present a login/consent screen.
     For this demo, it auto-approves and redirects with an auth code.
     """
@@ -379,15 +381,24 @@ def oauth_authorize():
     response_type = request.args.get('response_type')
     scope = request.args.get('scope', '')
     state = request.args.get('state', '')
+    code_challenge = request.args.get('code_challenge')
+    code_challenge_method = request.args.get('code_challenge_method')
     
     if client_id != CLIENT_ID or response_type != 'code':
         return jsonify({"error": "Invalid client_id or response_type"}), 400
     
+    # Validate PKCE parameters if provided
+    if code_challenge and code_challenge_method != 'S256':
+        return jsonify({"error": "Unsupported code_challenge_method"}), 400
+    
     # Generate mock authorization code
     mock_auth_code = "mcp_auth_code_canyon_123456"
     
-    # Store auth code temporarily (in real app, use proper storage)
+    # Store auth code and PKCE challenge temporarily (in real app, use proper storage)
     app.config['temp_auth_code'] = mock_auth_code
+    if code_challenge:
+        app.config['temp_code_challenge'] = code_challenge
+        logger.info(f"Stored PKCE code_challenge for auth code: {mock_auth_code}")
     
     # Redirect back to ChatGPT with the authorization code
     redirect_params = f"code={mock_auth_code}"
@@ -399,7 +410,7 @@ def oauth_authorize():
 @app.route('/oauth/token', methods=['POST'])
 def oauth_token():
     """
-    Token endpoint for OAuth 2.0.
+    Token endpoint for OAuth 2.0 with PKCE support.
     Exchanges the authorization code for an access token.
     """
     grant_type = request.form.get('grant_type')
@@ -407,13 +418,35 @@ def oauth_token():
     redirect_uri = request.form.get('redirect_uri')
     client_id = request.form.get('client_id')
     client_secret = request.form.get('client_secret')
+    code_verifier = request.form.get('code_verifier')
     
-    # Validate the request
+    # Validate basic OAuth parameters
     if (grant_type != 'authorization_code' or 
         code != app.config.get('temp_auth_code') or
-        client_id != CLIENT_ID or 
-        client_secret != CLIENT_SECRET):
+        client_id != CLIENT_ID):
         return jsonify({"error": "invalid_grant"}), 400
+    
+    # Verify PKCE if code_challenge was provided during authorization
+    stored_code_challenge = app.config.get('temp_code_challenge')
+    if stored_code_challenge:
+        if not code_verifier:
+            return jsonify({"error": "code_verifier_required"}), 400
+        
+        # Verify PKCE: hash the code_verifier and compare with stored challenge
+        verifier_hash = hashlib.sha256(code_verifier.encode('utf-8')).digest()
+        verifier_challenge = base64.urlsafe_b64encode(verifier_hash).decode('utf-8').rstrip('=')
+        
+        if verifier_challenge != stored_code_challenge:
+            logger.error(f"PKCE verification failed. Expected: {stored_code_challenge}, Got: {verifier_challenge}")
+            return jsonify({"error": "invalid_code_verifier"}), 400
+        
+        logger.info("PKCE verification successful")
+        # Clear the stored challenge
+        app.config.pop('temp_code_challenge', None)
+    else:
+        # If no PKCE challenge was stored, fall back to client_secret validation
+        if client_secret != CLIENT_SECRET:
+            return jsonify({"error": "invalid_client"}), 400
     
     # Generate access token
     access_token = "mcp_access_token_canyon_abcdef123456"

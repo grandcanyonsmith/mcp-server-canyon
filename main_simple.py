@@ -196,6 +196,7 @@ def home():
             "search": "/search",
             "fetch": "/fetch",
             "oauth_config": "/.well-known/mcp_oauth_config",
+            "oauth_discovery": "/.well-known/oauth-authorization-server",
             "oauth_authorize": "/oauth/authorize",
             "oauth_token": "/oauth/token"
         },
@@ -225,6 +226,25 @@ def mcp_oauth_config():
         "token_endpoint_auth_methods_supported": ["client_secret_basic"],
         "code_challenge_methods_supported": ["S256"],
         "issuer": base_url
+    })
+
+@app.route('/.well-known/oauth-authorization-server', methods=['GET'])
+def oauth_authorization_server():
+    """
+    Standard OAuth 2.0 Authorization Server Metadata (RFC 8414)
+    This is what ChatGPT is looking for in the logs.
+    """
+    base_url = request.url_root.rstrip('/')
+    return jsonify({
+        "issuer": base_url,
+        "authorization_endpoint": f"{base_url}/oauth/authorize",
+        "token_endpoint": f"{base_url}/oauth/token",
+        "scopes_supported": ["read", "write"],
+        "response_types_supported": ["code"],
+        "grant_types_supported": ["authorization_code"],
+        "token_endpoint_auth_methods_supported": ["client_secret_basic", "client_secret_post"],
+        "code_challenge_methods_supported": ["S256"],
+        "subject_types_supported": ["public"]
     })
 
 @app.route('/oauth/authorize', methods=['GET'])

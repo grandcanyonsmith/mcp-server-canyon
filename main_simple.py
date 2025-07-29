@@ -86,6 +86,23 @@ def health_check():
 def mcp_sse():
     """Handle MCP requests via JSON-RPC over HTTP"""
     try:
+        # Check for access token in Authorization header
+        auth_header = request.headers.get('Authorization')
+        if auth_header and auth_header.startswith('Bearer '):
+            access_token = auth_header.split(' ')[1]
+            # Validate the access token (for demo, accept any token that starts with 'mcp_access_token')
+            if not access_token.startswith('mcp_access_token'):
+                return jsonify({
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32001,
+                        "message": "Invalid access token"
+                    }
+                }), 401
+        else:
+            # For demo purposes, allow requests without tokens (but log it)
+            logger.info("MCP request without access token - allowing for demo")
+        
         data = request.get_json()
         logger.info(f"MCP request: {data}")
         

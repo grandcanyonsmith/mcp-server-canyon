@@ -337,7 +337,8 @@ def mcp_oauth_config():
     Returns the OAuth configuration for the MCP server.
     This endpoint is discovered by ChatGPT.
     """
-    base_url = request.url_root.rstrip('/')
+    # Force HTTPS for OAuth endpoints since Render uses HTTPS
+    base_url = "https://mcp-server-canyon-1.onrender.com"
     return jsonify({
         "authorization_endpoint": f"{base_url}/oauth/authorize",
         "token_endpoint": f"{base_url}/oauth/token",
@@ -356,7 +357,8 @@ def oauth_authorization_server():
     Standard OAuth 2.0 Authorization Server Metadata (RFC 8414)
     This is what ChatGPT is looking for in the logs.
     """
-    base_url = request.url_root.rstrip('/')
+    # Force HTTPS for OAuth endpoints since Render uses HTTPS
+    base_url = "https://mcp-server-canyon-1.onrender.com"
     return jsonify({
         "issuer": base_url,
         "authorization_endpoint": f"{base_url}/oauth/authorize",

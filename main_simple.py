@@ -340,7 +340,8 @@ def mcp_oauth_config():
     # Get host from request but force HTTPS for OAuth endpoints
     host = request.headers.get('Host', 'mcp-server-canyon-1.onrender.com')
     base_url = f"https://{host}"
-    return jsonify({
+    
+    response = jsonify({
         "authorization_endpoint": f"{base_url}/oauth/authorize",
         "token_endpoint": f"{base_url}/oauth/token",
         "scopes": ["read", "write"],
@@ -351,6 +352,13 @@ def mcp_oauth_config():
         "code_challenge_methods_supported": ["S256"],
         "issuer": base_url
     })
+    
+    # Add CORS headers for ChatGPT
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    
+    return response
 
 @app.route('/.well-known/oauth-authorization-server', methods=['GET'])
 def oauth_authorization_server():
@@ -361,7 +369,8 @@ def oauth_authorization_server():
     # Get host from request but force HTTPS for OAuth endpoints
     host = request.headers.get('Host', 'mcp-server-canyon-1.onrender.com')
     base_url = f"https://{host}"
-    return jsonify({
+    
+    response = jsonify({
         "issuer": base_url,
         "authorization_endpoint": f"{base_url}/oauth/authorize",
         "token_endpoint": f"{base_url}/oauth/token",
@@ -372,6 +381,13 @@ def oauth_authorization_server():
         "code_challenge_methods_supported": ["S256"],
         "subject_types_supported": ["public"]
     })
+    
+    # Add CORS headers for ChatGPT
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    
+    return response
 
 @app.route('/oauth/authorize', methods=['GET'])
 def oauth_authorize():
